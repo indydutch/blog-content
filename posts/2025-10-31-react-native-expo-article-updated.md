@@ -91,7 +91,7 @@ A well-structured React Native app typically organizes code into feature folders
 
 **Note**: If you use expo-router, your `app/` directory replaces much of manual navigation setup with file-based routing. For non-router apps, the `src/navigation` pattern still scales beautifully.
 
-📚 [Learn more about React Native project structure best practices](https://reactnative.dev/docs/0.76/directory-structure)
+📚 [Learn more about React Native project structure best practices](https://reactnative.express/app/project_structure)
 
 ---
 
