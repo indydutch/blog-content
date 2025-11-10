@@ -2,7 +2,7 @@
 title: "Blockchain in 2025: Beyond the Hype — Real-World Applications That Actually Work"
 author: "Matthew Dutchess"
 date: "2025-11-10"
-category: "Saas"
+category: "saas"
 excerpt: "Learn when blockchain technology solves real business problems in 2025, which platforms to use, and how to implement solutions without falling for buzzwords or overengineering."
 tags: ["Blockchain", "Web3", "Smart Contracts", "Enterprise Technology", "Distributed Systems"]
 readTime: "10 min read"
