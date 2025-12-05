@@ -845,4 +845,6 @@ Multi-Agent Supply Chain Simulator:
 
 Share what you build — we'd love to see what you create!
 
+---
+
 Crafted with ❤️ by One Ocean Labs
