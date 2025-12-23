@@ -5,7 +5,7 @@ date: "2025-12-22"
 category: "AI"
 excerpt: "Build a fully autonomous morning-planning agent that checks weather, reads your calendar, and sends daily briefings using MCP servers and n8n workflows."
 tags: ["AI Agents", "MCP", "n8n", "Automation", "Python", "LLM"]
-readTime: "15 min read"
+readTime: "20 min read"
 ---
 
 # Build an Autonomous AI Agent with MCP and n8n
@@ -28,11 +28,21 @@ By the end, you'll understand how to create production-ready AI agents that perc
 
 **MCP (Model Context Protocol)** is Anthropic's open standard that lets LLMs discover and use external tools — think "USB-C port for AI."
 
+### Breaking Down the "USB-C for AI" Analogy
+
+Just like USB-C provides a universal way to connect any device (phone, laptop, monitor) to any accessory (charger, keyboard, external drive), MCP provides a universal way to connect any AI model to any external capability. Before USB-C, you needed different cables for everything. Before MCP, developers had to write custom integrations for every tool an AI needed to use. MCP standardizes this, meaning:
+
+- **Any MCP-compatible AI** can use **any MCP server** without custom code
+- Tool creators build once, and every AI can use it
+- You can mix and match tools from different sources
+
 Go checkout out our previous article on [MCP Demystified: The Open Standard Powering the Next Wave of Agentic AI](https://1oceanlabs.com/blog/2025-11-17-mcp-introduction-part1) for more information on why you should use MCP.
 
 ---
 
 ## Architecture Overview
+
+Before diving into the diagram, let's understand what we're building: a system where an AI agent wakes up every morning, checks the weather and your calendar, figures out if there are any conflicts (like an outdoor meeting on a rainy day), and sends you a personalized briefing. The magic is that *you don't program the logic*—the AI decides what to do based on the situation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -62,7 +72,22 @@ Go checkout out our previous article on [MCP Demystified: The Open Standard Powe
       └─────────────────┘               └─────────────────┘
 ```
 
+### Understanding Each Component
+
+Here's what each piece does:
+
+| Component | What It Is | What It Does |
+|-----------|-----------|--------------|
+| **n8n Workflow Engine** | An automation platform (like Zapier, but open-source and self-hosted) | Orchestrates the entire flow—triggers the agent, passes data between steps, sends the final email |
+| **Daily Trigger** | A scheduled timer | Kicks off the workflow at the same time every day (like a cron job) |
+| **AI Agent** | GPT-4 or Claude with tool-calling abilities | The "brain" that decides what data to fetch and how to synthesize it into a useful briefing |
+| **MCP Servers** | Small web services that expose tools | Translators between the AI and external services (weather APIs, calendars, etc.) |
+| **Weather MCP Server** | Python service running on port 8000 | Wraps the OpenWeatherMap API so the AI can ask "What's the weather in Tampa?" |
+| **Calendar MCP Server** | Python service running on port 8001 | Provides access to your schedule so the AI can see today's meetings |
+
 **What makes this "agentic":** The LLM autonomously decides which tools to call and in what order based on the task—you don't hardcode the logic.
+
+Think of it this way: you don't write code that says "first get weather, then get calendar, then compare them." Instead, you give the AI a goal ("create a morning briefing") and access to tools. The AI figures out the steps itself. This is what separates an "agent" from a simple chatbot.
 
 ---
 
@@ -74,6 +99,15 @@ You'll need:
 - **OpenWeatherMap API Key** (free) — [Get API Key](https://openweathermap.org/api)
 - **OpenAI API Key** — [Get API Key](https://platform.openai.com/api-keys)
 - **~15 minutes** for setup
+
+### What is Docker and Why Do We Need It?
+
+If you're new to Docker, here's a quick primer: Docker is a tool that packages applications into "containers"—self-contained environments that include everything the app needs to run (code, libraries, system tools). Think of it like shipping containers for software:
+
+- **Without Docker**: "It works on my machine!" → teammate can't run it because they have different Python versions, missing libraries, etc.
+- **With Docker**: Your app runs identically everywhere because it brings its own environment
+
+**Docker Compose** takes this further by letting you define *multiple* containers that work together (in our case: n8n + weather server + calendar server) and start them all with one command.
 
 > **Note:** The calendar server uses mock data by default. For real Google Calendar integration, you'll need to set up Google Cloud OAuth credentials (instructions in `.env.example`).
 
@@ -87,6 +121,10 @@ You'll need:
 git clone https://github.com/oneoceanlabs/mcp-agent-project
 cd mcp-agent-project
 ```
+
+**What these commands do:**
+- `git clone` downloads a copy of the project from GitHub to your computer
+- `cd` ("change directory") moves you into the project folder
 
 **Repository structure:**
 ```
@@ -102,6 +140,14 @@ mcp-agent-project/
 └── README.md
 ```
 
+**Understanding the file structure:**
+- `servers/` contains the Python code for our MCP servers
+- `docker-compose.yml` defines how all our services connect together
+- `Dockerfile.mcp` tells Docker how to build a container for our Python servers
+- `requirements.txt` lists Python packages we need (like a shopping list for pip)
+- `.env.example` is a template for your secret keys (API keys, passwords)
+- `n8n-workflow.json` is the pre-built workflow you'll import into n8n
+
 [📂 View complete repository →](https://github.com/oneoceanlabs/mcp-agent-project)
 
 ### Step 2: Configure Environment Variables
@@ -110,6 +156,8 @@ mcp-agent-project/
 cp .env.example .env
 ```
 
+This command copies the example environment file to create your actual `.env` file. Environment variables are how we safely store secrets like API keys—they stay on your machine and never get committed to Git.
+
 Add your API keys to `.env`:
 
 ```bash
@@ -117,6 +165,11 @@ OPENWEATHER_API_KEY=your_openweather_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 N8N_ENCRYPTION_KEY=random_32_char_string
 ```
+
+**Where to get these keys:**
+- **OPENWEATHER_API_KEY**: Sign up at [openweathermap.org](https://openweathermap.org/api), go to "API Keys" in your account
+- **OPENAI_API_KEY**: From [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- **N8N_ENCRYPTION_KEY**: Generate a random string (you can use `openssl rand -hex 16` in your terminal)
 
 ### Step 3: Start Everything
 
@@ -128,10 +181,15 @@ docker-compose up -d
 docker-compose ps
 ```
 
+**What's happening here:**
+- `docker-compose up` reads the `docker-compose.yml` file and starts all defined services
+- The `-d` flag runs everything in "detached" mode (in the background, so you get your terminal back)
+- `docker-compose ps` shows you the status of all running containers
+
 This starts:
-- **n8n** (http://localhost:5678)
-- **Weather MCP Server** (http://localhost:8000)
-- **Calendar MCP Server** (http://localhost:8001)
+- **n8n** (http://localhost:5678) — The workflow automation interface
+- **Weather MCP Server** (http://localhost:8000) — Our weather tool server
+- **Calendar MCP Server** (http://localhost:8001) — Our calendar tool server
 
 ### Step 4: Import the Workflow
 
@@ -151,9 +209,12 @@ That's it! Your agent will run daily.
 
 ### Understanding MCP Server Capabilities
 
-MCP servers expose three types of capabilities to LLMs:
+MCP servers expose three types of capabilities to LLMs. Think of these as different ways the AI can interact with your server:
 
 **1. Tools** — Functions the LLM explicitly calls
+
+Tools are like functions in a restaurant menu—the AI looks at what's available, picks what it needs, and explicitly orders it. The AI *chooses* when to call a tool.
+
 ```python
 @mcp.tool()
 async def get_forecast(city: str) -> dict[str, Any]:
@@ -162,6 +223,9 @@ async def get_forecast(city: str) -> dict[str, Any]:
 ```
 
 **2. Resources** — Context automatically injected into every LLM conversation
+
+Resources are like the bread basket that arrives at your table automatically—you didn't order it, but it's there if you want it. Resources provide background information the AI can reference without making an explicit call.
+
 ```python
 @mcp.resource("weather://conditions")
 async def current_conditions():
@@ -170,6 +234,9 @@ async def current_conditions():
 ```
 
 **3. Prompts** — Reusable templates with placeholders
+
+Prompts are like form letters with blanks to fill in—pre-written templates that can be customized with specific data.
+
 ```python
 @mcp.prompt()
 def daily_briefing_template():
@@ -190,7 +257,7 @@ Plus a **resource** for automatic help documentation injection.
 
 ### Core Tool Implementation
 
-Here's how a basic MCP tool is structured:
+Here's how a basic MCP tool is structured. Don't worry if some of this syntax is new—we'll break it down:
 
 ```python
 from fastmcp import FastMCP
@@ -234,6 +301,22 @@ async def get_forecast(city: str) -> dict[str, Any]:
         "status": "success"
     }
 ```
+
+### Breaking Down the Code
+
+Let's demystify some of the Python concepts used here:
+
+**The `@mcp.tool()` decorator:**
+The `@` symbol in Python is a "decorator"—a way to modify or enhance a function. Think of it like putting a sticky note on a function that says "Hey MCP framework, register this function as a tool!" When the AI asks "what tools do you have?", MCP knows to include this function in the list.
+
+**`async def` and `await`:**
+These keywords enable "asynchronous" programming. Here's the simple version: when your code needs to wait for something slow (like a network request), `async`/`await` lets Python do other work instead of just sitting there. Imagine ordering coffee—instead of standing at the counter staring until it's ready, you can check your phone. That's async. The `await` keyword is where you say "pause here until this thing finishes."
+
+**`httpx.AsyncClient()`:**
+This is a modern HTTP library for Python—it's what makes the actual web request to OpenWeatherMap. The `async with` part ensures the connection is properly cleaned up when we're done.
+
+**Type hints (`city: str`, `-> dict[str, Any]`):**
+These tell Python (and other developers) what types of data the function expects and returns. `city: str` means "city should be a string." `-> dict[str, Any]` means "this function returns a dictionary." They're not strictly required, but they make code easier to understand and help catch bugs.
 
 **Key features:**
 - FastMCP framework for simplified server creation
@@ -282,6 +365,8 @@ async def check_outdoor_conditions(city: str) -> dict[str, Any]:
     }
 ```
 
+**What's happening here:** This function calls our existing `get_forecast` function (notice the `await` since it's async), then applies scoring rules to determine how suitable the weather is for outdoor activities. The `max(0, min(100, score))` is a clever way to ensure the score stays between 0 and 100—it can't go negative or above 100 no matter how many deductions we make.
+
 **Scoring factors:**
 - Temperature (freezing: -40, extreme heat: -35, cold: -20)
 - Precipitation (storms: -50, rain: -30, snow: -25)
@@ -310,7 +395,7 @@ Tips:
 """
 ```
 
-This documentation is injected into the LLM's context automatically, helping it understand tool capabilities without explicit prompting.
+This documentation is injected into the LLM's context automatically, helping it understand tool capabilities without explicit prompting. It's like giving the AI a quick reference card about what your server can do.
 
 ---
 
@@ -320,6 +405,8 @@ The calendar server demonstrates MCP **resources** — automatic context injecti
 
 ### Resources vs Tools
 
+Here's the key difference illustrated with code:
+
 **Without resources (requires explicit tool call):**
 ```python
 @mcp.tool()
@@ -328,6 +415,8 @@ async def get_todays_events() -> dict:
     return {"events": [...]}
 ```
 
+With this approach, the AI has to *decide* to call the function. If the AI doesn't think to ask about today's events, it won't have that information.
+
 **With resources (automatic context):**
 ```python
 @mcp.resource("calendar://today")
@@ -335,6 +424,8 @@ def todays_events() -> str:
     """Automatically available in LLM context on every turn"""
     return json.dumps({"events": [...]})
 ```
+
+With resources, the data is already there—the AI sees it without asking. It's the difference between having to Google something vs. already knowing it.
 
 The LLM can reference today's calendar without making a tool call — it's already in context.
 
@@ -368,6 +459,8 @@ async def check_events(date: str) -> dict[str, Any]:
     }
 ```
 
+**About the mock data:** In a production system, this would connect to Google Calendar via OAuth. For learning purposes, we're using hardcoded sample events. The `.get(date, [])` pattern is a safe way to look up a dictionary key—if the date doesn't exist, it returns an empty list instead of crashing.
+
 [📄 View complete calendar_server.py →](https://github.com/oneoceanlabs/mcp-agent-project/blob/main/servers/calendar_server.py)
 
 ### Resource: User Preferences
@@ -385,11 +478,15 @@ async def user_preferences() -> str:
     })
 ```
 
-The LLM sees these preferences on every turn and can factor them into scheduling decisions.
+The LLM sees these preferences on every turn and can factor them into scheduling decisions. For example, if the AI is suggesting a reschedule time, it already knows not to suggest noon (lunch time) or 6 PM (after working hours).
 
 ---
 
 ## The n8n Workflow
+
+### What is n8n?
+
+If you're new to n8n, it's a workflow automation tool—think of it as a visual programming environment where you connect boxes (called "nodes") to create automations. Each node does one thing: fetch data, transform it, send an email, call an API, etc. You connect them together like LEGO blocks to build complex automations without writing much code.
 
 ### Workflow Components
 
@@ -410,6 +507,8 @@ Daily Trigger → Set User Context → AI Agent (calls MCP tools)
 → Weather Alert Check → [High Priority / Normal Priority] → Send Email
 ```
 
+**Reading the flow:** Data flows left to right. The Daily Trigger starts things at 7 AM (or whenever you configure). It passes control to "Set User Context" which adds variables like city and date. The AI Agent receives this context, calls the MCP tools as needed, and produces a briefing. The IF node checks if there are any weather concerns, and routes to either a high-priority or normal-priority email formatter. Finally, the email is sent.
+
 **Built-in documentation:** The workflow includes a sticky note with setup instructions and MCP server URL configuration. This appears as a yellow note in the n8n canvas when you import the workflow.
 
 ### AI Agent Configuration
@@ -423,6 +522,8 @@ The AI Agent node is configured with:
   "temperature": 0.3  // Lower temp for more consistent, factual responses
 }
 ```
+
+**What is "temperature"?** In AI models, temperature controls randomness. At 0, the model always picks the most likely response (very deterministic). At 1, it's more creative and varied. For factual tasks like weather reports, we want consistency, so we use 0.3.
 
 **System message:**
 ```
@@ -442,6 +543,8 @@ IMPORTANT: You MUST call the tools to get data before responding.
 Do not guess or assume weather conditions.
 ```
 
+**Why this matters:** The system message shapes the AI's behavior. Without explicit instructions to use tools, the AI might try to guess the weather based on its training data (which is outdated). The "MUST call the tools" instruction prevents this.
+
 **Prompt template:**
 ```
 Create a morning briefing for today ({{ $json.date }}) in {{ $json.city }}.
@@ -459,7 +562,7 @@ Format your response as a friendly morning briefing with:
 - Top 3 actionable recommendations for the day
 ```
 
-The prompt uses n8n expressions to inject the city and date from the previous node.
+The prompt uses n8n expressions (the `{{ }}` syntax) to inject the city and date from the previous node. This is n8n's templating language—similar to how you might use `${variable}` in JavaScript.
 
 ### Connecting MCP Servers
 
@@ -471,7 +574,7 @@ In the AI Agent node, add **MCP Tool** connections:
 **Calendar MCP:**
 - **Endpoint URL**: `http://calendar-mcp:8001/mcp`
 
-**Important:** These URLs use Docker Compose service names (`weather-mcp`, `calendar-mcp`). If running servers locally or on different hosts, adjust the URLs accordingly (e.g., `http://localhost:8000/mcp`).
+**Important:** These URLs use Docker Compose service names (`weather-mcp`, `calendar-mcp`). When containers run on the same Docker network, they can reach each other by service name—Docker handles the networking. If running servers locally or on different hosts, adjust the URLs accordingly (e.g., `http://localhost:8000/mcp`).
 
 The agent automatically discovers all available tools from these servers and can call them autonomously based on the prompt.
 
@@ -487,7 +590,7 @@ Before the AI agent runs, we set the context variables:
 }
 ```
 
-This allows you to easily change the target city or use dynamic dates. The values are then available to the agent via `{{ $json.city }}` and `{{ $json.date }}` in the prompt.
+This allows you to easily change the target city or use dynamic dates. The values are then available to the agent via `{{ $json.city }}` and `{{ $json.date }}` in the prompt. The `$now.format()` function gives us today's date in the format the calendar server expects.
 
 ### Weather Alert Detection
 
@@ -500,6 +603,8 @@ $json.output.toLowerCase().includes("rain") OR
 $json.output.toLowerCase().includes("storm") OR
 $json.output.toLowerCase().includes("reschedule")
 ```
+
+**Why keyword detection instead of structured output?** Asking an LLM to output perfect JSON every time adds complexity and can fail. Simple keyword detection is more robust—if the AI mentions "rain" anywhere in its response, we flag it as a weather alert. This is a pragmatic engineering choice.
 
 **Branch logic:**
 - **True** (alert detected) → High Priority Email with ⚠️ prefix
@@ -580,9 +685,23 @@ volumes:
   n8n_data:
 ```
 
+### Understanding Docker Compose YAML
+
+Let's break down what each section means:
+
+| Section | Purpose | Example |
+|---------|---------|---------|
+| `services` | Defines each container to run | n8n, weather-mcp, calendar-mcp |
+| `image` | Uses a pre-built image from Docker Hub | `n8nio/n8n:latest` |
+| `build` | Builds an image from a Dockerfile | Our custom MCP servers |
+| `ports` | Maps container ports to your machine | `"8000:8000"` means localhost:8000 → container:8000 |
+| `environment` | Sets environment variables inside the container | API keys, config |
+| `volumes` | Persists data outside the container | n8n saves workflows here |
+| `networks` | Defines how containers talk to each other | All on `mcp-network` |
+
 **Key features:**
 - All services on same Docker network for easy communication
-- Volume persistence for n8n data
+- Volume persistence for n8n data (your workflows survive restarts)
 - Health checks on MCP servers
 - Automatic restarts
 
@@ -609,6 +728,16 @@ EXPOSE 8000
 CMD ["python", "servers/weather_server.py"]
 ```
 
+**Reading the Dockerfile:**
+1. `FROM python:3.11-slim` — Start with a lightweight Python 3.11 image
+2. `WORKDIR /app` — All following commands run from /app
+3. `COPY requirements.txt .` — Copy our dependencies list
+4. `RUN pip install...` — Install Python packages
+5. `COPY servers/ ./servers/` — Copy our server code
+6. `HEALTHCHECK` — Docker will ping this endpoint to verify the server is healthy
+7. `EXPOSE 8000` — Document which port the container uses
+8. `CMD` — The command to run when the container starts
+
 [📄 View complete Dockerfile.mcp →](https://github.com/oneoceanlabs/mcp-agent-project/blob/main/Dockerfile.mcp)
 
 ---
@@ -621,31 +750,25 @@ Before connecting to n8n, verify your servers work:
 
 ```bash
 # Test weather server
-curl http://localhost:8000/mcp/tools
+curl http://localhost:8000/health
 
-# Expected output: List of available tools
+# Expected output: Health check returns 'healthy' status
 {
-  "tools": [
-    {
-      "name": "get_forecast",
-      "description": "Fetch current weather for a city",
-      "inputSchema": {...}
-    },
-    ...
-  ]
+  "status": "healthy",
+  "service": "weather-mcp"
 }
 
-# Test a tool call
-curl -X POST http://localhost:8000/mcp/call \
-  -H "Content-Type: application/json" \
-  -d '{"tool":"get_forecast","arguments":{"city":"New York"}}'
 ```
+
+**What's `curl`?** It's a command-line tool for making HTTP requests. Think of it as a browser without the visual interface: you tell it a URL, and it shows you what the server returns.
 
 ### Test the Full Workflow
 
 1. Open n8n at http://localhost:5678
-2. Click "Execute Workflow" manually
-3. Check the execution log for:
+2. Create a new workflow
+3. Add any desired nodes or import a workflow JSON file
+4. Click "Execute Workflow" manually
+5. Check the execution log for:
    - ✅ MCP server connections
    - ✅ Tool calls (weather, calendar)
    - ✅ AI reasoning steps
@@ -750,7 +873,7 @@ Update MCP Tool node URLs in n8n:
 
 3. **Check spam folder** for test emails
 
-### Issue 2: Agent Not Using Tools
+### Issue 4: Agent Not Using Tools
 
 **Symptoms:** AI responds without calling MCP tools
 
@@ -768,7 +891,7 @@ Update MCP Tool node URLs in n8n:
 3. **Check tool descriptions:**
    - Make them action-oriented: "Fetch weather data" (good) vs "Weather" (bad)
 
-### Issue 3: Rate Limiting
+### Issue 5: Rate Limiting
 
 **Symptoms:** OpenWeatherMap API errors after multiple calls
 
@@ -791,6 +914,8 @@ async def get_forecast(city: str):
     
     # ... rest of implementation
 ```
+
+**How this works:** The `deque` (double-ended queue) keeps track of the last 60 API call timestamps. If we've made 60 calls in under a minute, we return an error instead of hitting the API. This is a simple "sliding window" rate limiter.
 
 ---
 
@@ -817,6 +942,8 @@ REDIS_URL=redis://redis:6379
 ENABLE_RATE_LIMITING=true
 MAX_REQUESTS_PER_MINUTE=30
 ```
+
+**Why different environments?** In development, you want verbose logging to debug issues. In production, you want less noise, error tracking (Sentry), caching (Redis), and stricter rate limits.
 
 ### Kubernetes Deployment
 
@@ -861,6 +988,8 @@ spec:
             cpu: "500m"
 ```
 
+**What's Kubernetes?** If Docker is like shipping containers, Kubernetes is like the port authority that manages where containers go, ensures they're healthy, and spins up replacements when they fail. The `replicas: 3` means "always keep 3 copies of this server running"—if one crashes, Kubernetes automatically starts a new one.
+
 ### Monitoring & Observability
 
 Add Prometheus metrics to your MCP server:
@@ -879,10 +1008,16 @@ async def get_forecast(city: str):
         # ... implementation
 ```
 
+**What are these metrics?**
+- **Counter**: Counts how many times something happened (e.g., "get_forecast called 1,247 times today")
+- **Histogram**: Measures how long things take (e.g., "95% of weather calls complete in under 200ms")
+
 Start metrics server:
 ```python
 start_http_server(9090)  # Metrics at http://localhost:9090/metrics
 ```
+
+Prometheus (a monitoring tool) scrapes this endpoint and stores the data for dashboards and alerts.
 
 ---
 
@@ -895,12 +1030,16 @@ start_http_server(9090)  # Metrics at http://localhost:9090/metrics
 api_key = "sk-1234567890abcdef"  # BAD!
 ```
 
+This is dangerous because: (1) Keys end up in version control, (2) Anyone with code access has your keys, (3) Rotating keys requires code changes.
+
 ✅ **Do:** Use environment variables
 ```python
 api_key = os.getenv("OPENWEATHER_API_KEY")
 if not api_key:
     raise ValueError("OPENWEATHER_API_KEY not set")
 ```
+
+Environment variables are external to your code—they can be changed without redeploying, and they're not committed to Git.
 
 ### 2. Input Validation
 
@@ -914,6 +1053,8 @@ async def get_forecast(city: str):
     # Sanitize input (prevent injection)
     city = city.strip().replace(";", "")
 ```
+
+**Why sanitize?** Users (or AI models) might pass malicious input. While this simple example just removes semicolons, production code should use proper sanitization libraries. Never trust user input.
 
 ### 3. Rate Limiting
 
@@ -931,6 +1072,8 @@ n8n:
   volumes:
     - ./certs:/certs:ro
 ```
+
+**Why HTTPS?** Without encryption, anyone on the network can see your API keys and data in transit. HTTPS encrypts everything between the client and server.
 
 ---
 
@@ -995,6 +1138,8 @@ async def delegate_task(task_type: str, params: dict):
 - **Weather Worker**: Meteorological analysis
 - **Calendar Worker**: Scheduling logic
 - **Communication Worker**: Notifications
+
+This pattern scales to complex problems where a single AI would be overwhelmed. The supervisor breaks down the problem and assigns pieces to specialists.
 
 ---
 
@@ -1064,9 +1209,24 @@ The future of AI is autonomous systems that perceive, reason, and act. You just 
 - [OpenAI API](https://platform.openai.com/docs)
 
 ### Community
-- [MCP Discord Server](https://discord.gg/mcp)
 - [n8n Community Forum](https://community.n8n.io/)
 - [Blog Series Part 1: MCP Introduction](https://1oceanlabs.com/blog/2025-11-17-mcp-introduction-part1)
+
+### Further Learning
+
+If some concepts in this tutorial were new to you, here are some resources to deepen your understanding:
+
+**Docker & Containers:**
+- [Docker's Official Getting Started Guide](https://docs.docker.com/get-started/)
+- [Docker Compose Tutorial](https://docs.docker.com/compose/gettingstarted/)
+
+**Python Async Programming:**
+- [Python asyncio documentation](https://docs.python.org/3/library/asyncio.html)
+- [Real Python: Async IO in Python](https://realpython.com/async-io-python/)
+
+**n8n Workflow Automation:**
+- [n8n Quickstart](https://docs.n8n.io/try-it-out/quickstart/)
+- [n8n Courses](https://docs.n8n.io/courses/)
 
 ---
 
