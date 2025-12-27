@@ -72,7 +72,7 @@ Before diving into the diagram, let's understand what we're building: a system w
       └─────────────────┘               └─────────────────┘
 ```
 
-![n8n Workflow Engine Diagram](https://github.com/indydutch/blog-content/blob/main/images/n8n-workflow-diagram.png)
+![n8n Workflow Engine Diagram](https://raw.githubusercontent.com/indydutch/blog-content/refs/heads/main/images/n8n-workflow-diagram.png)
 
 ### Understanding Each Component
 
