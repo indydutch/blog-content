@@ -1,7 +1,7 @@
 ---
 title: "MCP Demystified: Build an Autonomous AI Agent with MCP and n8n"
 author: "Matthew Dutchess"
-date: "2025-12-22"
+date: "2025-12-26"
 category: "AI"
 excerpt: "Build a fully autonomous morning-planning agent that checks weather, reads your calendar, and sends daily briefings using MCP servers and n8n workflows."
 tags: ["AI Agents", "MCP", "n8n", "Automation", "Python", "LLM"]
@@ -71,6 +71,8 @@ Before diving into the diagram, let's understand what we're building: a system w
       │      API        │               │  (or Google)    │
       └─────────────────┘               └─────────────────┘
 ```
+
+![n8n Workflow Engine Diagram](https://github.com/indydutch/blog-content/blob/main/images/n8n-workflow-diagram.png)
 
 ### Understanding Each Component
 
@@ -302,6 +304,8 @@ async def get_forecast(city: str) -> dict[str, Any]:
     }
 ```
 
+**Pro Tip: Why FastMCP?** We're using **FastMCP** here, a high-level framework that simplifies server creation. It abstracts away about 50 lines of boilerplate code you'd normally need to set up a standard MCP server from scratch. While the official Anthropic docs show the "standard" way, FastMCP is the go-to for rapid prototyping and clean production code.
+
 ### Breaking Down the Code
 
 Let's demystify some of the Python concepts used here:
@@ -374,6 +378,11 @@ async def check_outdoor_conditions(city: str) -> dict[str, Any]:
 - Humidity (very humid: -10)
 
 The tool returns activity recommendations based on the final score (0-100).
+
+#### The Agentic Edge: Why hardcode a score?
+You might notice we’ve hardcoded specific logic for the "Outdoor Score" (e.g., -30 for rain). In a traditional app, this is where the flexibility ends.
+
+**The MCP Advantage:** Because this data is fed to an LLM, the agent can reason beyond these numbers. If a user says, "I'm a professional storm chaser," the agent can see our "Not Recommended" rating and correctly pivot to: _"The conditions are dangerous for most, but perfect for your chase. Here is the local wind shear data."_ > We provide the **structured baseline**; the Agent provides the **unstructured reasoning**.
 
 ### Resource: Built-in Documentation
 
