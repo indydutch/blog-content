@@ -44,34 +44,6 @@ Go checkout out our previous article on [MCP Demystified: The Open Standard Powe
 
 Before diving into the diagram, let's understand what we're building: a system where an AI agent wakes up every morning, checks the weather and your calendar, figures out if there are any conflicts (like an outdoor meeting on a rainy day), and sends you a personalized briefing. The magic is that *you don't program the logic*—the AI decides what to do based on the situation.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     n8n Workflow Engine                         │
-│                                                                 │
-│  ┌──────────────┐     ┌─────────────────┐     ┌───────────────┐ │
-│  │    Daily     │───▶│    AI Agent      │───▶│  Send Email/  │ │
-│  │   Trigger    │     │   (GPT-4/Claude)│     │    Slack      │ │
-│  └──────────────┘     └────────┬────────┘     └───────────────┘ │
-│                                │                                │
-│                                │ MCP Tool Calls                 │
-│                                ▼                                │
-│              ┌─────────────────┴────────────────┐               │
-│              │                                  │               │
-│              ▼                                  ▼               │
-│     ┌─────────────────┐               ┌─────────────────┐       │
-│     │  Weather MCP    │               │  Calendar MCP   │       │
-│     │    Server       │               │    Server       │       │
-│     │  (Port 8000)    │               │  (Port 8001)    │       │
-│     └────────┬────────┘               └────────┬────────┘       │
-└──────────────┼─────────────────────────────────┼────────────────┘
-               │                                 │
-               ▼                                 ▼
-      ┌─────────────────┐               ┌─────────────────┐
-      │  OpenWeatherMap │               │  Mock Calendar  │
-      │      API        │               │  (or Google)    │
-      └─────────────────┘               └─────────────────┘
-```
-
 ![n8n Workflow Engine Diagram](https://raw.githubusercontent.com/indydutch/blog-content/refs/heads/main/images/n8n-workflow-diagram.png)
 
 ### Understanding Each Component
